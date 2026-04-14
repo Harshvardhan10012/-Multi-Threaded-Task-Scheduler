@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TaskScheduler — Control Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700;900&display=swap" rel="stylesheet" />
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg0:      #080a0c;
+    --bg1:      #0d1117;
+    --bg2:      #131920;
+    --bg3:      #1a2230;
+    --border:   #1e2d3d;
+    --amber:    #f0a500;
+    --amber-lo: #f0a50022;
+    --amber-md: #f0a50055;
+    --green:    #00d68f;
+    --green-lo: #00d68f22;
+    --red:      #ff4757;
+    --red-lo:   #ff475722;
+    --blue:     #4facfe;
+    --blue-lo:  #4facfe22;
+    --gray:     #4a5568;
+    --gray-lo:  #4a556822;
+    --text:     #c9d1d9;
+    --text-dim: #586069;
+    --mono:     'Share Tech Mono', monospace;
+    --sans:     'Barlow', sans-serif;
+  }
+
+  html, body {
+    background: var(--bg0);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanline overlay ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 9999;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.04) 2px,
+      rgba(0,0,0,0.04) 4px
+    );
+  }
+
+  /* ── Layout ── */
+  .shell {
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    grid-template-columns: 280px 1fr 300px;
+    height: 100vh;
+    gap: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    grid-column: 1 / -1;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 20px;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--amber);
+    letter-spacing: 2px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 28px; height: 28px;
+    border: 2px solid var(--amber);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    animation: spin-slow 8s linear infinite;
+  }
+
+  @keyframes spin-slow {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .header-stats {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    align-items: center;
+  }
+
+  .hstat {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .hstat-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gray);
+  }
+
+  .hstat-dot.running { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1s ease-in-out infinite; }
+  .hstat-dot.done    { background: var(--green); }
+  .hstat-dot.failed  { background: var(--red); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  .run-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    background: var(--amber);
+    color: var(--bg0);
+    border: none;
+    padding: 6px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: background .15s;
+  }
+  .run-btn:hover { background: #ffc200; }
+
+  .stop-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    background: transparent;
+    color: var(--red);
+    border: 1px solid var(--red);
+    padding: 6px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .stop-btn:hover { background: var(--red-lo); }
+
+  /* ── Left panel ── */
+  .panel-left {
+    background: var(--bg1);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    padding: 12px 16px 8px;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+
+  /* ── Submit form ── */
+  .form-body {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+
+  .field label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .field input, .field select {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+    transition: border-color .15s;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus { border-color: var(--amber); }
+
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .checkbox-row {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11px; color: var(--red);
+    cursor: pointer;
+  }
+  .checkbox-row input { width: auto; }
+
+  .submit-btn {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--amber-md);
+    color: var(--amber);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding: 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .submit-btn:hover { background: var(--amber-lo); border-color: var(--amber); }
+
+  /* ── Workers section ── */
+  .workers-section {
+    padding: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+
+  .workers-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .worker-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    transition: all .2s;
+  }
+
+  .worker-card.busy {
+    border-color: var(--amber-md);
+    background: var(--amber-lo);
+  }
+
+  .worker-id {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .worker-task {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .worker-idle {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .worker-progress {
+    height: 2px;
+    background: var(--bg3);
+    border-radius: 1px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+
+  .worker-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--amber), #ffc200);
+    border-radius: 1px;
+    transition: width .1s linear;
+  }
+
+  /* ── Center panel ── */
+  .panel-center {
+    background: var(--bg0);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Pipeline view ── */
+  .pipeline {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .pipeline-col {
+    border-right: 1px solid var(--border);
+    min-height: 140px;
+    padding: 10px 8px;
+  }
+  .pipeline-col:last-child { border-right: none; }
+
+  .pipeline-col-header {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .col-pending   .pipeline-col-header { color: var(--gray); }
+  .col-ready     .pipeline-col-header { color: var(--amber); }
+  .col-running   .pipeline-col-header { color: var(--blue); }
+  .col-done      .pipeline-col-header { color: var(--green); }
+  .col-failed    .pipeline-col-header { color: var(--red); }
+
+  .col-count {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 900;
+  }
+
+  .pipeline-task {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-left: 2px solid transparent;
+    animation: task-enter .2s ease-out;
+  }
+
+  @keyframes task-enter {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .pipeline-task.PENDING  { background: var(--gray-lo);  border-color: var(--gray);  color: var(--gray); }
+  .pipeline-task.READY    { background: var(--amber-lo); border-color: var(--amber); color: var(--amber); }
+  .pipeline-task.RUNNING  { background: var(--blue-lo);  border-color: var(--blue);  color: var(--blue); }
+  .pipeline-task.DONE     { background: var(--green-lo); border-color: var(--green); color: var(--green); }
+  .pipeline-task.FAILED   { background: var(--red-lo);   border-color: var(--red);   color: var(--red); }
+  .pipeline-task.CANCELLED{ background: var(--gray-lo);  border-color: var(--gray);  color: var(--text-dim); text-decoration: line-through; }
+
+  /* ── Task table ── */
+  .task-table-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+  }
+
+  .task-table-wrap::-webkit-scrollbar { width: 4px; }
+  .task-table-wrap::-webkit-scrollbar-track { background: var(--bg0); }
+  .task-table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  thead th {
+    position: sticky; top: 0;
+    background: var(--bg1);
+    color: var(--text-dim);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background .1s;
+  }
+  tbody tr:hover { background: var(--bg1); }
+
+  tbody td {
+    padding: 7px 12px;
+    color: var(--text);
+  }
+
+  .td-id    { color: var(--text-dim); }
+  .td-name  { color: var(--text); }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 2px 7px;
+    border-radius: 2px;
+    border: 1px solid;
+    text-transform: uppercase;
+  }
+
+  .badge-HIGH     { color: var(--red);   border-color: var(--red);   background: var(--red-lo); }
+  .badge-NORMAL   { color: var(--blue);  border-color: var(--blue);  background: var(--blue-lo); }
+  .badge-LOW      { color: var(--gray);  border-color: var(--gray);  background: var(--gray-lo); }
+
+  .badge-PENDING  { color: var(--gray);  border-color: var(--gray);  background: var(--gray-lo); }
+  .badge-READY    { color: var(--amber); border-color: var(--amber); background: var(--amber-lo); }
+  .badge-RUNNING  { color: var(--blue);  border-color: var(--blue);  background: var(--blue-lo); }
+  .badge-DONE     { color: var(--green); border-color: var(--green); background: var(--green-lo); }
+  .badge-FAILED   { color: var(--red);   border-color: var(--red);   background: var(--red-lo); }
+  .badge-CANCELLED{ color: var(--gray);  border-color: var(--gray);  background: var(--gray-lo); }
+
+  .cancel-btn {
+    font-family: var(--mono);
+    font-size: 9px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 2px 8px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .cancel-btn:hover { border-color: var(--red); color: var(--red); background: var(--red-lo); }
+
+  /* ── Right panel: log ── */
+  .panel-right {
+    background: var(--bg1);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .log-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .log-body::-webkit-scrollbar { width: 3px; }
+  .log-body::-webkit-scrollbar-track { background: transparent; }
+  .log-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .log-entry {
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.6;
+    padding: 2px 6px;
+    border-radius: 2px;
+    animation: log-in .15s ease-out;
+    border-left: 2px solid transparent;
+  }
+
+  @keyframes log-in {
+    from { opacity: 0; transform: translateX(6px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .log-ts { color: var(--text-dim); margin-right: 6px; }
+
+  .log-submit   { color: var(--blue);  border-color: var(--blue); background: var(--blue-lo); }
+  .log-ready    { color: var(--amber); border-color: var(--amber-md); }
+  .log-running  { color: #a78bfa;      border-color: #a78bfa55; background: #a78bfa11; }
+  .log-done     { color: var(--green); border-color: var(--green-lo); }
+  .log-failed   { color: var(--red);   border-color: var(--red-lo);   background: var(--red-lo); }
+  .log-cancel   { color: var(--gray);  border-color: var(--gray-lo); }
+  .log-system   { color: var(--text-dim); font-style: italic; }
+
+  /* ── Throughput chart ── */
+  .chart-area {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .chart-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  canvas#throughput {
+    width: 100%;
+    height: 50px;
+    display: block;
+  }
+
+  /* ── Demo scenarios ── */
+  .scenarios {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .scenario-btn {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    text-align: left;
+    transition: all .15s;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .scenario-btn:hover { border-color: var(--amber-md); color: var(--amber); background: var(--amber-lo); }
+
+  .scenario-icon { font-size: 12px; }
+
+  /* ── Misc ── */
+  .empty-row td {
+    text-align: center;
+    color: var(--text-dim);
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .prog-bar-wrap {
+    width: 60px;
+    height: 3px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .prog-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--blue), #a78bfa);
+    border-radius: 2px;
+    transition: width .1s;
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚙</div>
+      TASKSCHEDULER <span style="color:var(--text-dim);font-size:11px">v1.0 · C++17</span>
+    </div>
+
+    <div class="header-stats">
+      <div class="hstat"><div class="hstat-dot running"></div><span id="h-running">0</span> RUNNING</div>
+      <div class="hstat"><div class="hstat-dot done"></div><span id="h-done">0</span> DONE</div>
+      <div class="hstat"><div class="hstat-dot failed"></div><span id="h-failed">0</span> FAILED</div>
+      <div class="hstat" style="color:var(--text-dim)">WORKERS: <span id="h-workers" style="color:var(--amber)">4</span></div>
+      <div id="backend-indicator" style="display:none;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--green);background:var(--green-lo);border:1px solid var(--green);border-radius:3px;padding:3px 10px;">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;box-shadow:0 0 6px var(--green);animation:pulse 1.5s ease-in-out infinite"></span>
+        WS LIVE
+      </div>
+      <button class="run-btn" onclick="runDemo()">▶ RUN DEMO</button>
+      <button class="stop-btn" onclick="resetAll()">■ RESET</button>
+    </div>
+  </header>
+
+  <!-- ── Left panel ── -->
+  <aside class="panel-left">
+    <div class="panel-title">SUBMIT TASK</div>
+
+    <div class="form-body">
+      <div class="field">
+        <label>Task Name</label>
+        <input id="f-name" type="text" placeholder="my-task" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Priority</label>
+          <select id="f-pri">
+            <option value="HIGH">HIGH</option>
+            <option value="NORMAL" selected>NORMAL</option>
+            <option value="LOW">LOW</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Duration (ms)</label>
+          <input id="f-dur" type="number" value="800" min="100" max="5000" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Delay (ms)</label>
+          <input id="f-delay" type="number" value="0" min="0" />
+        </div>
+        <div class="field">
+          <label>Period (ms)</label>
+          <input id="f-period" type="number" value="0" min="0" placeholder="0=once" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Depends on (IDs, comma-sep)</label>
+        <input id="f-deps" type="text" placeholder="e.g. 1,2,3" />
+      </div>
+      <label class="checkbox-row">
+        <input id="f-fail" type="checkbox" /> Simulate failure
+      </label>
+      <button class="submit-btn" onclick="submitTask()">⊕ SUBMIT TASK</button>
+    </div>
+
+    <!-- Workers -->
+    <div class="workers-section">
+      <div class="section-label">Worker Threads</div>
+      <div class="workers-grid" id="workers-grid"></div>
+    </div>
+
+    <!-- Scenarios -->
+    <div class="scenarios">
+      <div class="section-label">Demo Scenarios</div>
+      <button class="scenario-btn" onclick="scenarioPipeline()"><span class="scenario-icon">🔗</span>Pipeline (A→B→C→D)</button>
+      <button class="scenario-btn" onclick="scenarioPriority()"><span class="scenario-icon">⚡</span>Priority Burst</button>
+      <button class="scenario-btn" onclick="scenarioHeartbeat()"><span class="scenario-icon">💓</span>Periodic Heartbeat</button>
+      <button class="scenario-btn" onclick="scenarioStress()"><span class="scenario-icon">🔥</span>Stress (20 tasks)</button>
+    </div>
+  </aside>
+
+  <!-- ── Center panel ── -->
+  <main class="panel-center">
+
+    <!-- Pipeline columns -->
+    <div class="pipeline">
+      <div class="pipeline-col col-pending">
+        <div class="pipeline-col-header">PENDING <span class="col-count" id="cnt-pending">0</span></div>
+        <div id="pipe-pending"></div>
+      </div>
+      <div class="pipeline-col col-ready">
+        <div class="pipeline-col-header">READY <span class="col-count" id="cnt-ready">0</span></div>
+        <div id="pipe-ready"></div>
+      </div>
+      <div class="pipeline-col col-running">
+        <div class="pipeline-col-header">RUNNING <span class="col-count" id="cnt-running">0</span></div>
+        <div id="pipe-running"></div>
+      </div>
+      <div class="pipeline-col col-done">
+        <div class="pipeline-col-header">DONE <span class="col-count" id="cnt-done">0</span></div>
+        <div id="pipe-done"></div>
+      </div>
+      <div class="pipeline-col col-failed">
+        <div class="pipeline-col-header">FAILED / CANCELLED <span class="col-count" id="cnt-failed">0</span></div>
+        <div id="pipe-failed"></div>
+      </div>
+    </div>
+
+    <!-- Task table -->
+    <div class="task-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>NAME</th>
+            <th>PRIORITY</th>
+            <th>STATUS</th>
+            <th>PROGRESS</th>
+            <th>DEPS</th>
+            <th>ACTION</th>
+          </tr>
+        </thead>
+        <tbody id="task-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- ── Right panel: log ── -->
+  <aside class="panel-right">
+    <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
+      SCHEDULER LOG
+      <span style="font-size:9px;color:var(--text-dim);cursor:pointer" onclick="clearLog()">CLEAR</span>
+    </div>
+    <div class="log-body" id="log-body"></div>
+    <div class="chart-area">
+      <div class="chart-label">THROUGHPUT (tasks/sec)</div>
+      <canvas id="throughput" width="268" height="50"></canvas>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  Scheduler Simulation Engine
+// ═══════════════════════════════════════════════════════
+
+const NUM_WORKERS = 4;
+let _nextId = 1;
+const tasks = new Map();
+const workers = Array.from({length: NUM_WORKERS}, (_, i) => ({id: i, taskId: null, busy: false}));
+const readyQueue = [];
+let tickTimer = null;
+let throughputHistory = new Array(30).fill(0);
+let doneThisSecond = 0;
+
+function mkId() { return _nextId++; }
+
+const PRI_ORDER = {HIGH: 0, NORMAL: 1, LOW: 2};
+
+function sortReady() {
+  readyQueue.sort((a, b) => {
+    const ta = tasks.get(a), tb = tasks.get(b);
+    if (!ta || !tb) return 0;
+    if (PRI_ORDER[ta.priority] !== PRI_ORDER[tb.priority])
+      return PRI_ORDER[ta.priority] - PRI_ORDER[tb.priority];
+    return ta.submittedAt - tb.submittedAt;
+  });
+}
+
+function canRun(t) {
+  if (Date.now() < t.notBefore) return false;
+  return t.deps.every(dep => {
+    const d = tasks.get(dep);
+    return !d || d.status === 'DONE';
+  });
+}
+
+function submitTaskEngine(opts) {
+  const id = mkId();
+  const t = {
+    id,
+    name:        opts.name || `task-${id}`,
+    priority:    opts.priority || 'NORMAL',
+    status:      'PENDING',
+    deps:        opts.deps || [],
+    notBefore:   opts.delay ? Date.now() + opts.delay : Date.now(),
+    duration:    opts.duration || 800,
+    period:      opts.period || 0,
+    repeatCount: opts.repeatCount !== undefined ? opts.repeatCount : Infinity,
+    shouldFail:  opts.shouldFail || false,
+    startedAt:   null,
+    submittedAt: Date.now(),
+    progress:    0,
+  };
+  tasks.set(id, t);
+  addLog(`Submitted "${t.name}" [${t.priority}]${t.deps.length ? ` deps:[${t.deps}]` : ''}`, 'log-submit');
+  tick();
+  return id;
+}
+
+function cancelTask(id) {
+  const t = tasks.get(id);
+  if (!t) return false;
+  if (t.status === 'PENDING' || t.status === 'READY') {
+    t.status = 'CANCELLED';
+    const ri = readyQueue.indexOf(id);
+    if (ri !== -1) readyQueue.splice(ri, 1);
+    addLog(`Cancelled "${t.name}"`, 'log-cancel');
+    render();
+    return true;
+  }
+  return false;
+}
+
+function tick() {
+  const now = Date.now();
+
+  // PENDING → READY
+  for (const [id, t] of tasks) {
+    if (t.status === 'PENDING' && canRun(t)) {
+      t.status = 'READY';
+      readyQueue.push(id);
+      sortReady();
+      addLog(`"${t.name}" → READY`, 'log-ready');
+    }
+  }
+
+  // Assign READY → workers
+  for (const w of workers) {
+    if (!w.busy && readyQueue.length > 0) {
+      const id = readyQueue.shift();
+      const t = tasks.get(id);
+      if (!t || t.status !== 'READY') continue;
+      t.status = 'RUNNING';
+      t.startedAt = now;
+      t.progress = 0;
+      w.busy = true;
+      w.taskId = id;
+      addLog(`Worker-${w.id} ▶ "${t.name}"`, 'log-running');
+
+      const dur = t.duration;
+      const failIt = t.shouldFail;
+
+      // Progress updater
+      const prog = setInterval(() => {
+        const elapsed = Date.now() - t.startedAt;
+        t.progress = Math.min(elapsed / dur * 100, 99);
+        renderProgressOnly();
+      }, 50);
+
+      setTimeout(() => {
+        clearInterval(prog);
+        w.busy = false;
+        w.taskId = null;
+        const t2 = tasks.get(id);
+        if (!t2) return;
+
+        if (failIt) {
+          t2.status = 'FAILED';
+          t2.progress = 0;
+          addLog(`"${t2.name}" FAILED ✗`, 'log-failed');
+        } else {
+          t2.status = 'DONE';
+          t2.progress = 100;
+          doneThisSecond++;
+          addLog(`"${t2.name}" DONE ✓`, 'log-done');
+
+          // Periodic reschedule
+          if (t2.period > 0 && t2.repeatCount > 1) {
+            submitTaskEngine({
+              name: t2.name,
+              priority: t2.priority,
+              duration: t2.duration,
+              period: t2.period,
+              delay: t2.period,
+              shouldFail: t2.shouldFail,
+              repeatCount: t2.repeatCount - 1,
+            });
+          }
+        }
+        tick();
+        render();
+      }, dur);
+    }
+  }
+
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+//  Throughput chart
+// ═══════════════════════════════════════════════════════
+
+setInterval(() => {
+  throughputHistory.push(doneThisSecond);
+  throughputHistory.shift();
+  doneThisSecond = 0;
+  drawThroughput();
+}, 1000);
+
+function drawThroughput() {
+  const canvas = document.getElementById('throughput');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth * devicePixelRatio;
+  const H = canvas.offsetHeight * devicePixelRatio;
+  canvas.width = W;
+  canvas.height = H;
+
+  const max = Math.max(...throughputHistory, 1);
+  const step = W / (throughputHistory.length - 1);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Fill
+  ctx.beginPath();
+  ctx.moveTo(0, H);
+  throughputHistory.forEach((v, i) => {
+    ctx.lineTo(i * step, H - (v / max) * H * 0.85);
+  });
+  ctx.lineTo(W, H);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(240,165,0,0.3)');
+  grad.addColorStop(1, 'rgba(240,165,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  throughputHistory.forEach((v, i) => {
+    const x = i * step;
+    const y = H - (v / max) * H * 0.85;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#f0a500';
+  ctx.lineWidth = 1.5 * devicePixelRatio;
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════
+//  Render
+// ═══════════════════════════════════════════════════════
+
+let _rafId = null;
+function render() {
+  if (_rafId) return;
+  _rafId = requestAnimationFrame(() => { _rafId = null; _render(); });
+}
+
+function renderProgressOnly() {
+  // Lightweight — just update progress bars without full DOM rebuild
+  for (const [id, t] of tasks) {
+    if (t.status !== 'RUNNING') continue;
+    const bar = document.querySelector(`[data-prog="${id}"]`);
+    if (bar) bar.style.width = t.progress + '%';
+  }
+  // Workers
+  for (const w of workers) {
+    const card = document.querySelector(`[data-worker="${w.id}"]`);
+    if (!card) continue;
+    if (w.busy && w.taskId) {
+      const t = tasks.get(w.taskId);
+      if (t) {
+        const pb = card.querySelector('.worker-progress-bar');
+        if (pb) pb.style.width = t.progress + '%';
+      }
+    }
+  }
+}
+
+function _render() {
+  const all = Array.from(tasks.values());
+  const byStatus = s => all.filter(t => t.status === s);
+
+  // Header counts
+  document.getElementById('h-running').textContent = byStatus('RUNNING').length;
+  document.getElementById('h-done').textContent = byStatus('DONE').length;
+  document.getElementById('h-failed').textContent = byStatus('FAILED').length + byStatus('CANCELLED').length;
+
+  // Pipeline columns
+  const statuses = ['PENDING','READY','RUNNING','DONE','FAILED'];
+  for (const s of statuses) {
+    const col = document.getElementById(`pipe-${s.toLowerCase()}`);
+    const cnt = document.getElementById(`cnt-${s.toLowerCase()}`);
+    const items = s === 'FAILED'
+      ? all.filter(t => t.status === 'FAILED' || t.status === 'CANCELLED')
+      : byStatus(s);
+    if (cnt) cnt.textContent = items.length;
+    if (col) {
+      col.innerHTML = items.slice(-8).map(t =>
+        `<div class="pipeline-task ${t.status}" title="${t.name}">${t.name}</div>`
+      ).join('');
+    }
+  }
+
+  // Workers grid
+  const wg = document.getElementById('workers-grid');
+  wg.innerHTML = workers.map(w => {
+    const t = w.taskId ? tasks.get(w.taskId) : null;
+    return `
+      <div class="worker-card ${w.busy ? 'busy' : ''}" data-worker="${w.id}">
+        <div class="worker-id">WORKER-${w.id}</div>
+        ${w.busy && t
+          ? `<div class="worker-task">▶ ${t.name}</div>
+             <div class="worker-progress"><div class="worker-progress-bar" style="width:${t.progress}%"></div></div>`
+          : `<div class="worker-idle">idle</div>`
+        }
+      </div>`;
+  }).join('');
+
+  // Task table
+  const tbody = document.getElementById('task-tbody');
+  if (all.length === 0) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">No tasks submitted yet — use the form or run a demo</td></tr>`;
+  } else {
+    tbody.innerHTML = all.slice().reverse().map(t => {
+      const canCancel = t.status === 'PENDING' || t.status === 'READY';
+      const prog = t.status === 'RUNNING'
+        ? `<div class="prog-bar-wrap"><div class="prog-bar" data-prog="${t.id}" style="width:${t.progress}%"></div></div>`
+        : t.status === 'DONE' ? '<span style="color:var(--green);font-size:10px">100%</span>'
+        : '—';
+      return `
+        <tr>
+          <td class="td-id">#${t.id}</td>
+          <td class="td-name">${t.name}</td>
+          <td><span class="badge badge-${t.priority}">${t.priority}</span></td>
+          <td><span class="badge badge-${t.status}">${t.status}</span></td>
+          <td>${prog}</td>
+          <td style="color:var(--text-dim)">${t.deps.length ? t.deps.map(d=>'#'+d).join(' ') : '—'}</td>
+          <td>${canCancel ? `<button class="cancel-btn" onclick="cancelTask(${t.id})">CANCEL</button>` : '—'}</td>
+        </tr>`;
+    }).join('');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  Log
+// ═══════════════════════════════════════════════════════
+
+function addLog(msg, cls = 'log-system') {
+  const body = document.getElementById('log-body');
+  const el = document.createElement('div');
+  el.className = `log-entry ${cls}`;
+  const ts = new Date().toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.innerHTML = `<span class="log-ts">${ts}</span>${msg}`;
+  body.prepend(el);
+  if (body.children.length > 120) body.lastChild.remove();
+}
+
+function clearLog() {
+  document.getElementById('log-body').innerHTML = '';
+}
+
+// ═══════════════════════════════════════════════════════
+//  Form submit
+// ═══════════════════════════════════════════════════════
+
+function submitTask() {
+  const name     = document.getElementById('f-name').value.trim();
+  const priority = document.getElementById('f-pri').value;
+  const duration = parseInt(document.getElementById('f-dur').value) || 800;
+  const delay    = parseInt(document.getElementById('f-delay').value) || 0;
+  const period   = parseInt(document.getElementById('f-period').value) || 0;
+  const depsRaw  = document.getElementById('f-deps').value.trim();
+  const shouldFail = document.getElementById('f-fail').checked;
+  const deps = depsRaw ? depsRaw.split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)) : [];
+
+  submitTaskEngine({ name: name || undefined, priority, duration, delay, period, shouldFail, deps });
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-fail').checked = false;
+}
+
+// ═══════════════════════════════════════════════════════
+//  Scenarios
+// ═══════════════════════════════════════════════════════
+
+function resetAll() {
+  tasks.clear();
+  workers.forEach(w => { w.busy = false; w.taskId = null; });
+  readyQueue.length = 0;
+  _nextId = 1;
+  throughputHistory = new Array(30).fill(0);
+  doneThisSecond = 0;
+  clearLog();
+  addLog('Scheduler reset', 'log-system');
+  render();
+}
+
+function runDemo() {
+  resetAll();
+  setTimeout(() => {
+    const a = submitTaskEngine({name:'fetch-data',   priority:'HIGH',   duration:700});
+    const b = submitTaskEngine({name:'parse-json',   priority:'NORMAL', duration:500, deps:[a]});
+    const c = submitTaskEngine({name:'validate',     priority:'NORMAL', duration:400, deps:[a]});
+    const d = submitTaskEngine({name:'transform',    priority:'HIGH',   duration:600, deps:[b,c]});
+        submitTaskEngine({name:'store-db',      priority:'LOW',    duration:300, deps:[d]});
+        submitTaskEngine({name:'send-email',    priority:'LOW',    duration:200, deps:[d]});
+        submitTaskEngine({name:'health-check',  priority:'NORMAL', duration:150, period:1500, repeatCount:4});
+        submitTaskEngine({name:'risky-op',      priority:'NORMAL', duration:400, shouldFail:true, delay:300});
+  }, 50);
+}
+
+function scenarioPipeline() {
+  addLog('── Pipeline scenario ──', 'log-system');
+  const a = submitTaskEngine({name:'ingest',    priority:'HIGH',   duration:600});
+  const b = submitTaskEngine({name:'transform', priority:'NORMAL', duration:500, deps:[a]});
+  const c = submitTaskEngine({name:'validate',  priority:'NORMAL', duration:400, deps:[b]});
+  const d = submitTaskEngine({name:'publish',   priority:'HIGH',   duration:300, deps:[c]});
+}
+
+function scenarioPriority() {
+  addLog('── Priority burst ──', 'log-system');
+  for (let i = 0; i < 3; i++) submitTaskEngine({name:`low-${i}`,    priority:'LOW',    duration:600});
+  for (let i = 0; i < 3; i++) submitTaskEngine({name:`normal-${i}`, priority:'NORMAL', duration:500});
+  for (let i = 0; i < 3; i++) submitTaskEngine({name:`high-${i}`,   priority:'HIGH',   duration:400});
+}
+
+function scenarioHeartbeat() {
+  addLog('── Periodic heartbeat ──', 'log-system');
+  submitTaskEngine({name:'heartbeat', priority:'HIGH', duration:100, period:800, repeatCount:5});
+}
+
+function scenarioStress() {
+  addLog('── Stress test: 20 tasks ──', 'log-system');
+  const pris = ['HIGH','NORMAL','LOW'];
+  for (let i = 0; i < 20; i++) {
+    submitTaskEngine({
+      name: `stress-${i}`,
+      priority: pris[i % 3],
+      duration: 200 + Math.random() * 800 | 0,
+      shouldFail: Math.random() < 0.1,
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  WebSocket Bridge  (ws://localhost:9001)
+//  Connects to the C++ ws_server. Falls back to local
+//  simulation if the server isn't running.
+// ═══════════════════════════════════════════════════════
+
+const WS_URL = 'ws://localhost:9001';
+let ws = null;
+let useBackend = false;
+let reconnectTimer = null;
+
+function wsConnect() {
+  try {
+    ws = new WebSocket(WS_URL);
+  } catch(e) {
+    scheduleReconnect(); return;
+  }
+
+  ws.onopen = () => {
+    useBackend = true;
+    clearInterval(localTickTimer);           // stop local simulation
+    clearTimeout(reconnectTimer);
+    document.getElementById('backend-indicator').style.display = 'flex';
+    addLog('⚡ WebSocket connected to C++ backend', 'log-done');
+  };
+
+  ws.onmessage = (evt) => {
+    let msg;
+    try { msg = JSON.parse(evt.data); } catch { return; }
+
+    switch (msg.event) {
+
+      case 'task_submitted': {
+        const t = msg.task;
+        tasks.set(t.id, {
+          id: t.id, name: t.name, priority: t.priority,
+          status: t.status, deps: t.deps || [],
+          progress: 0, submittedAt: Date.now(),
+          duration: 800, period: 0, shouldFail: false, startedAt: null,
+        });
+        render();
+        break;
+      }
+
+      case 'task_status': {
+        const t = tasks.get(msg.id);
+        if (t) {
+          t.status = msg.status;
+          if (msg.status === 'DONE')      { t.progress = 100; doneThisSecond++; }
+          if (msg.status === 'RUNNING')   { t.startedAt = Date.now(); }
+          if (msg.status === 'FAILED' ||
+              msg.status === 'CANCELLED') { t.progress = 0; }
+        }
+        render();
+        break;
+      }
+
+      case 'worker_update': {
+        // Sync simulated workers array from real backend
+        if (msg.workers) {
+          msg.workers.forEach((w, i) => {
+            if (workers[i]) {
+              workers[i].busy   = w.busy;
+              workers[i].taskId = w.busy ? (/* find id */ [...tasks.entries()].find(([,t])=>t.name===w.taskName)?.[0] ?? null) : null;
+            }
+          });
+        }
+        render();
+        break;
+      }
+
+      case 'stats': {
+        const s = msg.stats;
+        document.getElementById('h-running').textContent = s.running;
+        document.getElementById('h-done').textContent    = s.done;
+        document.getElementById('h-failed').textContent  = s.failed + s.cancelled;
+        break;
+      }
+
+      case 'log': {
+        const cls = msg.level === 'error' ? 'log-failed'
+                  : msg.level === 'warn'  ? 'log-cancel'
+                  : 'log-system';
+        addLog(msg.msg, cls);
+        break;
+      }
+
+      case 'reset': {
+        tasks.clear();
+        workers.forEach(w => { w.busy = false; w.taskId = null; });
+        readyQueue.length = 0;
+        _nextId = 1;
+        render();
+        break;
+      }
+    }
+  };
+
+  ws.onerror = () => {};
+
+  ws.onclose = () => {
+    if (useBackend) {
+      useBackend = false;
+      document.getElementById('backend-indicator').style.display = 'none';
+      addLog('⚠ WebSocket disconnected — switching to simulation', 'log-failed');
+      localTickTimer = setInterval(tick, 100);   // resume local sim
+    }
+    scheduleReconnect();
+  };
+}
+
+function scheduleReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(wsConnect, 3000);
+}
+
+// Override submitTaskEngine: send over WS when connected
+const _origSubmit = submitTaskEngine;
+function submitTaskEngine(opts) {
+  if (!useBackend || !ws || ws.readyState !== WebSocket.OPEN)
+    return _origSubmit(opts);
+
+  ws.send(JSON.stringify({
+    cmd:      'submit',
+    name:     opts.name     || '',
+    priority: opts.priority || 'NORMAL',
+    delay:    opts.delay    || 0,
+    period:   opts.period   || 0,
+    deps:     opts.deps     || [],
+    fail:     opts.shouldFail || false,
+  }));
+  return -1;  // real ID comes back via task_submitted event
+}
+
+// Override cancelTask: send over WS when connected
+const _origCancel = cancelTask;
+function cancelTask(id) {
+  if (!useBackend || !ws || ws.readyState !== WebSocket.OPEN)
+    return _origCancel(id);
+  ws.send(JSON.stringify({ cmd: 'cancel', id }));
+}
+
+// Override resetAll: send over WS when connected
+const _origReset = resetAll;
+function resetAll() {
+  if (!useBackend || !ws || ws.readyState !== WebSocket.OPEN)
+    return _origReset();
+  ws.send(JSON.stringify({ cmd: 'reset' }));
+}
+
+// ═══════════════════════════════════════════════════════
+//  Boot
+// ═══════════════════════════════════════════════════════
+
+addLog('TaskScheduler Control Panel loaded', 'log-system');
+addLog('Connecting to C++ backend at ws://localhost:9001 …', 'log-system');
+render();
+drawThroughput();
+let localTickTimer = setInterval(tick, 100);   // local sim until WS connects
+wsConnect();
+</script>
+</body>
+</html>
